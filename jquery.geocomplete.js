@@ -41,6 +41,10 @@
     detailsAttribute: "name",
     autoselect: true,
     location: false,
+    // 'google' or CustomGeoCoder
+    autocompleter: 'google',
+
+    completerOptions: {},
 
     mapOptions: {
       zoom: 14,
@@ -102,15 +106,15 @@
     initMap: function(){
       if (!this.options.map){ return; }
 
-      if (typeof this.options.map.setCenter == "function"){
+      if (typeof this.options.map.setCenter === "function"){
         this.map = this.options.map;
-        return;
+        // return;
+      } else {
+        this.map = new google.maps.Map(
+          $(this.options.map)[0],
+          this.options.mapOptions
+        );
       }
-
-      this.map = new google.maps.Map(
-        $(this.options.map)[0],
-        this.options.mapOptions
-      );
 
       // add click event listener on the map
       google.maps.event.addListener(
@@ -147,27 +151,31 @@
     // Associate the input with the autocompleter and create a geocoder
     // to fall back when the autocompleter does not return a value.
     initGeocoder: function(){
-
       var options = {
         types: this.options.types,
         bounds: this.options.bounds === true ? null : this.options.bounds,
-        componentRestrictions: this.options.componentRestrictions
+        componentRestrictions: this.options.componentRestrictions,
+        completerOptions: this.options.completerOptions
       };
 
       if (this.options.country){
         options.componentRestrictions = {country: this.options.country}
       }
 
-      this.autocomplete = new google.maps.places.Autocomplete(
-        this.input, options
-      );
+      if (this.options.autocompleter === 'google' ){
+        this.autocomplete = new google.maps.places.Autocomplete(
+          this.input, options
+        );
 
-      this.geocoder = new google.maps.Geocoder();
-
-      // Bind autocomplete to map bounds but only if there is a map
-      // and `options.bindToMap` is set to true.
-      if (this.map && this.options.bounds === true){
-        this.autocomplete.bindTo('bounds', this.map);
+        // Bind autocomplete to map bounds but only if there is a map
+        // and `options.bindToMap` is set to true.
+        if (this.map && this.options.bounds === true){
+          this.autocomplete.bindTo('bounds', this.map);
+        }
+      } else if (typeof this.options.autocompleter === 'function') {
+        this.autocomplete = new this.options.autocompleter(
+          this.input, options
+        );
       }
 
       // Watch `place_changed` events on the autocomplete input field.
@@ -176,6 +184,8 @@
         'place_changed',
         $.proxy(this.placeChanged, this)
       );
+
+      this.geocoder = new google.maps.Geocoder();
 
       // Prevent parent form from being submitted if user hit enter.
       this.$input.keypress(function(event){
@@ -248,14 +258,17 @@
       if (latLng){
         if (this.map){ this.map.setCenter(latLng); }
         if (this.marker){ this.marker.setPosition(latLng); }
+        this.find(undefined, latLng);
+        return;
       }
     },
 
     // Look up a given address. If no `address` was specified it uses
     // the current value of the input.
-    find: function(address){
+    find: function(address, latLng){
       this.geocode({
-        address: address || this.$input.val()
+        address: latLng ? undefined : (address || this.$input.val()),
+        latLng: latLng
       });
     },
 
